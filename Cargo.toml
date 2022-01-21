@@ -2,10 +2,15 @@
 name = "esrtool"
 version = "0.1.0"
 edition = "2021"
-authors = 
-description = 
+authors = ["Ali Raheem <crates.io@shoryuken.me>"]
+license = "MIT"
+license-file = "LICENSE"
+description = "Port of the PS2 Homebrew ESRtool to Rust and modern platforms."
 readme = "README.md"
 homepage = "https://github.com/ali-raheem/esrtool_rs"
+repository = "https://github.com/ali-raheem/esrtool_rs"
+keywords = ["PS2", "retro", "gaming", "homebrew", "ESR"]
+categories = ["command-line-utilities"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
