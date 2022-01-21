@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Ali Raheem <crates.io@shoryuken.me>"]
 license = "MIT"
-license-file = "LICENSE"
 description = "Port of the PS2 Homebrew ESRtool to Rust and modern platforms."
 readme = "README.md"
 homepage = "https://github.com/ali-raheem/esrtool_rs"
