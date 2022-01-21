@@ -53,14 +53,14 @@ pub fn patch(iso_file_path: &str) {
     patch_lba(&mut iso_f, 34);
     patch_lba(&mut iso_f, 50);
 
-    write_dvd_data(&mut iso_f, DVD_DATA, 128);
+    write_dvd_data(&mut iso_f);
 }
 
-fn write_dvd_data(iso_f: &mut File, data: [u8; 24576], lba: u64) {
+fn write_dvd_data(iso_f: &mut File) {
     iso_f
-        .seek(SeekFrom::Start(LBA_SIZE * lba))
+        .seek(SeekFrom::Start(LBA_SIZE * 128))
         .expect("Could not seek to destination LBA.");
-    iso_f.write(&data).expect("Could not write DVD data.");
+    iso_f.write(&DVD_DATA).expect("Could not write DVD data.");
 }
 
 pub fn is_udf(iso_f: &mut File) -> bool {
@@ -117,20 +117,18 @@ fn patch_lba(iso_f: &mut File, dst_lba: u64) {
 
     let desc_crc_len = LittleEndian::read_u16(&lba[10..12]);
     let desc_crc = crc(lba[16..2048].try_into().expect("Could not slice LBA."));
+    let desc_crc_bytes = desc_crc.to_le_bytes();
+    lba[8] = desc_crc_bytes[0];
+    lba[9] = desc_crc_bytes[1];
 
     let mut checksum = 0u8;
     for i in 0..16 {
-        println!("byte = {}, checksum = {}", lba[i], checksum);
         checksum = checksum.wrapping_add(lba[i]);
     }
     checksum = checksum.wrapping_sub(lba[4]);
     lba[4] = checksum;
 
     write_lba(iso_f, lba, dst_lba);
-    println!(
-        "desc_crc_len = {}\ndesc_crc = {}\nchecksum = {}",
-        desc_crc_len, desc_crc, checksum
-    );
 }
 
 fn crc(block: [u8; (LBA_SIZE - 16) as usize]) -> u16 {
