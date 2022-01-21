@@ -25,6 +25,44 @@ pub fn is_patched(iso_f: &mut File) -> bool {
     buf == b"+NSR".to_owned()
 }
 
+fn write_lba(iso_f: &mut File, lba: [u8; LBA_SIZE as usize], dst_lba: u64) {
+    iso_f.seek(SeekFrom::Start(LBA_SIZE * dst_lba)).expect("Could not seek to destination LBA.");
+    iso_f.write(&lba).expect("Could not write LBA to file.");
+}
+
+fn copy_lba(iso_f: &mut File, src_lba: u64, dst_lba: u64) {
+    let mut lba = [0u8; LBA_SIZE as usize];
+    iso_f.seek(SeekFrom::Start(LBA_SIZE * src_lba)).expect("Could not seek to source LBA");
+    iso_f.read_exact(&mut lba).expect("Could not read LBA from ISO.");
+    write_lba(iso_f, lba, dst_lba);
+}
+
+pub fn unpatch(iso_file_path: &str) {
+    let mut iso_f = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(false)
+        .open(iso_file_path).expect("Could not open file");
+    match is_udf(&mut iso_f) {
+        false => panic!("Did not find UDF descriptor!"),
+        true => println!("Checking if file is patched...")
+    };
+    match is_patched(&mut iso_f) {
+        false => panic!("Not patch found."),
+        true => println!("Patch found.")
+    };
+    copy_lba(&mut iso_f, 14, 34);
+    copy_lba(&mut iso_f, 15, 50);
+
+    let zeros = [0u8; LBA_SIZE as usize];
+
+    write_lba(&mut iso_f, zeros, 14);
+    write_lba(&mut iso_f, zeros, 15);
+    for i in 0..12 {
+        write_lba(&mut iso_f, zeros, 128 + i);
+    }
+}
+
 pub fn patch(iso_file_path: &str) {
     let mut iso_f = OpenOptions::new()
         .read(true)
@@ -41,50 +79,50 @@ pub fn patch(iso_file_path: &str) {
     };
     copy_lba(&mut iso_f, 34, 14);
     copy_lba(&mut iso_f, 50, 15);
-    let mut lba = [0 as u8; LBA_SIZE as usize];
-    iso_f.seek(SeekFrom::Start(LBA_SIZE * 34)).expect("Could not seek in file.");
+    patch_lba(&mut iso_f, 34);
+    patch_lba(&mut iso_f, 50);
+    write_dvd_data(&mut iso_f, DVD_DATA, 128);
+}
+
+fn write_dvd_data(iso_f: &mut File, data: [u8; 24576], lba: u64) {
+    iso_f.seek(SeekFrom::Start(LBA_SIZE * lba)).expect("Could not seek to destination LBA.");
+    iso_f.write(&data).expect("Could not write DVD Header");
+}
+
+fn patch_lba(iso_f: &mut File, dst_lba: u64) {
+    let mut lba = [0u8; LBA_SIZE as usize];
+    iso_f.seek(SeekFrom::Start(LBA_SIZE * dst_lba)).expect("Could not seek in file.");
     iso_f.read_exact(&mut lba).expect("Could not read.");
-    lba[0xBC] = 0x80; // LBA 128
-    lba[0xBD] = 0x00;
-    //let desc_crc = LittleEndian::read_u16(&lba[8..10]);
+    lba[188] = 128;
+    lba[189] = 0;
+
     let desc_crc_len = LittleEndian::read_u16(&lba[10..12]);
     println!("desc_crc_len = {}", desc_crc_len);
 
-    let desc_crc = crc(0, lba[16..2048].try_into().expect("Could not slice LBA."), LBA_SIZE - 16);
+    let desc_crc = crc(lba[16..2048].try_into().expect("Could not slice LBA."));
 
     println!("desc_crc = {}", desc_crc);
 
     let mut checksum = 0u8;
 
-    for byte in lba[0..4].into_iter() {
-        checksum.wrapping_add(*byte);
+    for byte in lba[0..17].into_iter() {
+        checksum = checksum.wrapping_add(*byte);
+        println!("tag_checksum = {} + {}", checksum, *byte);
     }
-    for byte in lba[5..17].into_iter() {
-        checksum.wrapping_add(*byte);
-    }
-    //checksum.wrapping_sub(lba[4]);
+    checksum = checksum.wrapping_sub(lba[4]);
+    lba[4] = checksum;
 
-    println!("tag_checksum = {}", checksum);
+    write_lba(iso_f, lba, dst_lba);
 }
 
-fn copy_lba(iso_f: &mut File, src_lba: u64, dst_lba: u64) {
-    let mut lba = [0 as u8; LBA_SIZE as usize];
-    iso_f.seek(SeekFrom::Start(LBA_SIZE * src_lba)).expect("Could not seek to source LBA");
-    iso_f.read_exact(&mut lba).expect("Could not read LBA from ISO.");
-    iso_f.seek(SeekFrom::Start(LBA_SIZE * dst_lba)).expect("Could not seek to destination LBA.");
-    iso_f.write(&mut lba).expect("Could not write LBA to file.");
-}
-
-fn crc(crc0: u16, block: [u8; (LBA_SIZE - 16) as usize], len: u64) -> u16 {
-    let mut crc = crc0;
-    let mut data = [0 as u16; ((LBA_SIZE-16)/2) as usize];
-    LittleEndian::read_u16_into(&block, &mut data);
-    for datum in data {
+fn crc(block: [u8; (LBA_SIZE - 16) as usize]) -> u16 {
+    let mut crc = 0u16;
+    for byte in block {
         let crc_bytes = crc.to_le_bytes();
-        let crc_h = crc_bytes[0] as u16;
+        let crc_h = crc_bytes[0];
         let crc_l = crc_bytes[1];
-        crc = (crc_l as u16) << 8;
-        let i: usize = ((crc_h ^ datum) as u8).into();
+        crc = (crc_h as u16) << 8;
+        let i: usize = (crc_l ^ byte).into();
         crc ^= CRC_LOOKUP[i];
     }
     crc
@@ -124,7 +162,7 @@ const CRC_LOOKUP: [u16; 256] = [
     0xef1f, 0xff3e, 0xcf5d, 0xdf7c, 0xaf9b, 0xbfba, 0x8fd9, 0x9ff8,
     0x6e17, 0x7e36, 0x4e55, 0x5e74, 0x2e93, 0x3eb2, 0x0ed1, 0x1ef0];
 
-const _DVD_DATA: [u8; 24576] = [ 
+const DVD_DATA: [u8; 24576] = [ 
     0x00, 0x01, 0x02, 0x00, 0x60, 0x00, 0x00, 0x00, 0xD5, 0x97, 0xF0, 0x01, 0x00, 0x00, 0x00, 0x00, 0x78, 0x10, 0xD5, 0x07, 
     0x08, 0x1C, 0x0F, 0x1A, 0x08, 0x00, 0x00, 0x00, 0x03, 0x00, 0x03, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x4F, 0x53, 0x54, 0x41, 0x20, 0x43, 0x6F, 0x6D, 0x70, 0x72, 0x65, 
