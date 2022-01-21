@@ -59,7 +59,9 @@ fn write_dvd_data(iso_f: &mut File) {
     iso_f
         .seek(SeekFrom::Start(LBA_SIZE * 128))
         .expect("Could not seek to destination LBA.");
-    iso_f.write_all(&DVD_DATA).expect("Could not write DVD data.");
+    iso_f
+        .write_all(&DVD_DATA)
+        .expect("Could not write DVD data.");
 }
 
 pub fn is_udf(iso_f: &mut File) -> bool {
@@ -115,7 +117,10 @@ fn patch_lba(iso_f: &mut File, dst_lba: u64) {
     lba[189] = 0;
 
     let desc_crc_len = LittleEndian::read_u16(&lba[10..12]);
-    let desc_crc = crc(lba[16..2048].try_into().expect("Could not slice LBA."), desc_crc_len);
+    let desc_crc = crc(
+        lba[16..2048].try_into().expect("Could not slice LBA."),
+        desc_crc_len,
+    );
     let desc_crc_bytes = desc_crc.to_le_bytes();
     lba[8] = desc_crc_bytes[0];
     lba[9] = desc_crc_bytes[1];
