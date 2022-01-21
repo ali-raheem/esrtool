@@ -24,7 +24,6 @@ pub fn unpatch(iso_file_path: &str) {
     copy_lba(&mut iso_f, 15, 50);
 
     let zeros = [0u8; LBA_SIZE as usize];
-
     write_lba(&mut iso_f, zeros, 14);
     write_lba(&mut iso_f, zeros, 15);
     for i in 0..12 {
@@ -60,7 +59,7 @@ fn write_dvd_data(iso_f: &mut File) {
     iso_f
         .seek(SeekFrom::Start(LBA_SIZE * 128))
         .expect("Could not seek to destination LBA.");
-    iso_f.write(&DVD_DATA).expect("Could not write DVD data.");
+    iso_f.write_all(&DVD_DATA).expect("Could not write DVD data.");
 }
 
 pub fn is_udf(iso_f: &mut File) -> bool {
@@ -91,7 +90,7 @@ fn write_lba(iso_f: &mut File, lba: [u8; LBA_SIZE as usize], dst_lba: u64) {
     iso_f
         .seek(SeekFrom::Start(LBA_SIZE * dst_lba))
         .expect("Could not seek to destination LBA.");
-    iso_f.write(&lba).expect("Could not write LBA to file.");
+    iso_f.write_all(&lba).expect("Could not write LBA to file.");
 }
 
 fn copy_lba(iso_f: &mut File, src_lba: u64, dst_lba: u64) {
@@ -116,7 +115,7 @@ fn patch_lba(iso_f: &mut File, dst_lba: u64) {
     lba[189] = 0;
 
     let desc_crc_len = LittleEndian::read_u16(&lba[10..12]);
-    let desc_crc = crc(lba[16..2048].try_into().expect("Could not slice LBA."));
+    let desc_crc = crc(lba[16..2048].try_into().expect("Could not slice LBA."), desc_crc_len);
     let desc_crc_bytes = desc_crc.to_le_bytes();
     lba[8] = desc_crc_bytes[0];
     lba[9] = desc_crc_bytes[1];
@@ -131,15 +130,15 @@ fn patch_lba(iso_f: &mut File, dst_lba: u64) {
     write_lba(iso_f, lba, dst_lba);
 }
 
-fn crc(block: [u8; (LBA_SIZE - 16) as usize]) -> u16 {
+fn crc(block: &[u8], desc_crc_len: u16) -> u16 {
     let mut crc = 0u16;
-    for byte in block {
+    for i in 0..desc_crc_len {
         let crc_bytes = crc.to_le_bytes();
         let crc_h = crc_bytes[0];
         let crc_l = crc_bytes[1];
         crc = (crc_h as u16) << 8;
-        let i: usize = (crc_l ^ byte).into();
-        crc ^= CRC_LOOKUP[i];
+        let j: usize = (crc_l ^ block[i as usize]).into();
+        crc ^= CRC_LOOKUP[j];
     }
     crc
 }
