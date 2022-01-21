@@ -5,48 +5,6 @@ use std::io::{Read, Seek, Write};
 
 const LBA_SIZE: u64 = 2048;
 
-pub fn is_udf(iso_f: &mut File) -> bool {
-    for i in 1..64 {
-        let mut buf = [b'0'; 3];
-        let offset = (LBA_SIZE * i) + 32768 + 1;
-        iso_f
-            .seek(SeekFrom::Start(offset))
-            .expect("Could not seek in file.");
-        iso_f.read_exact(&mut buf).expect("Could not read in file.");
-        if buf == b"NSR".to_owned() {
-            return true;
-        }
-    }
-    false
-}
-
-pub fn is_patched(iso_f: &mut File) -> bool {
-    let mut buf = [b'0'; 4];
-    iso_f
-        .seek(SeekFrom::Start(LBA_SIZE * 14 + 25))
-        .expect("Could not seek in file.");
-    iso_f.read_exact(&mut buf).expect("Could not read in file.");
-    buf == b"+NSR".to_owned()
-}
-
-fn write_lba(iso_f: &mut File, lba: [u8; LBA_SIZE as usize], dst_lba: u64) {
-    iso_f
-        .seek(SeekFrom::Start(LBA_SIZE * dst_lba))
-        .expect("Could not seek to destination LBA.");
-    iso_f.write(&lba).expect("Could not write LBA to file.");
-}
-
-fn copy_lba(iso_f: &mut File, src_lba: u64, dst_lba: u64) {
-    let mut lba = [0u8; LBA_SIZE as usize];
-    iso_f
-        .seek(SeekFrom::Start(LBA_SIZE * src_lba))
-        .expect("Could not seek to source LBA");
-    iso_f
-        .read_exact(&mut lba)
-        .expect("Could not read LBA from ISO.");
-    write_lba(iso_f, lba, dst_lba);
-}
-
 pub fn unpatch(iso_file_path: &str) {
     let mut iso_f = OpenOptions::new()
         .read(true)
@@ -91,8 +49,10 @@ pub fn patch(iso_file_path: &str) {
     };
     copy_lba(&mut iso_f, 34, 14);
     copy_lba(&mut iso_f, 50, 15);
+
     patch_lba(&mut iso_f, 34);
     patch_lba(&mut iso_f, 50);
+
     write_dvd_data(&mut iso_f, DVD_DATA, 128);
 }
 
@@ -100,7 +60,49 @@ fn write_dvd_data(iso_f: &mut File, data: [u8; 24576], lba: u64) {
     iso_f
         .seek(SeekFrom::Start(LBA_SIZE * lba))
         .expect("Could not seek to destination LBA.");
-    iso_f.write(&data).expect("Could not write DVD Header");
+    iso_f.write(&data).expect("Could not write DVD data.");
+}
+
+pub fn is_udf(iso_f: &mut File) -> bool {
+    for i in 1..64 {
+        let mut buf = [b'0'; 3];
+        let offset = (LBA_SIZE * i) + 32768 + 1;
+        iso_f
+            .seek(SeekFrom::Start(offset))
+            .expect("Could not seek in file.");
+        iso_f.read_exact(&mut buf).expect("Could not read in file.");
+        if buf == b"NSR".to_owned() {
+            return true;
+        }
+    }
+    false
+}
+
+pub fn is_patched(iso_f: &mut File) -> bool {
+    let mut buf = [b'0'; 4];
+    iso_f
+        .seek(SeekFrom::Start(LBA_SIZE * 14 + 25))
+        .expect("Could not seek in file.");
+    iso_f.read_exact(&mut buf).expect("Could not read in file.");
+    buf == b"+NSR".to_owned()
+}
+
+fn write_lba(iso_f: &mut File, lba: [u8; LBA_SIZE as usize], dst_lba: u64) {
+    iso_f
+        .seek(SeekFrom::Start(LBA_SIZE * dst_lba))
+        .expect("Could not seek to destination LBA.");
+    iso_f.write(&lba).expect("Could not write LBA to file.");
+}
+
+fn copy_lba(iso_f: &mut File, src_lba: u64, dst_lba: u64) {
+    let mut lba = [0u8; LBA_SIZE as usize];
+    iso_f
+        .seek(SeekFrom::Start(LBA_SIZE * src_lba))
+        .expect("Could not seek to source LBA");
+    iso_f
+        .read_exact(&mut lba)
+        .expect("Could not read LBA from ISO.");
+    write_lba(iso_f, lba, dst_lba);
 }
 
 fn patch_lba(iso_f: &mut File, dst_lba: u64) {
@@ -117,8 +119,9 @@ fn patch_lba(iso_f: &mut File, dst_lba: u64) {
     let desc_crc = crc(lba[16..2048].try_into().expect("Could not slice LBA."));
 
     let mut checksum = 0u8;
-    for byte in lba[0..17].into_iter() {
-        checksum = checksum.wrapping_add(*byte);
+    for i in 0..16 {
+        println!("byte = {}, checksum = {}", lba[i], checksum);
+        checksum = checksum.wrapping_add(lba[i]);
     }
     checksum = checksum.wrapping_sub(lba[4]);
     lba[4] = checksum;
