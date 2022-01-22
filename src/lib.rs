@@ -1,4 +1,3 @@
-use byteorder::{ByteOrder, LittleEndian};
 use std::fs::{File, OpenOptions};
 use std::io::SeekFrom;
 use std::io::{Read, Seek, Write};
@@ -116,7 +115,8 @@ fn patch_lba(iso_f: &mut File, dst_lba: u64) {
     lba[188] = 128;
     lba[189] = 0;
 
-    let desc_crc_len = LittleEndian::read_u16(&lba[10..12]);
+    let desc_crc_len = ((lba[11] as u16) << 8) | (lba[10] as u16);
+    assert!(desc_crc_len < LBA_SIZE as u16);
     let desc_crc = crc(
         lba[16..2048].try_into().expect("Could not slice LBA."),
         desc_crc_len,
