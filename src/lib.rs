@@ -96,9 +96,9 @@ impl Iso {
             .create(false)
             .open(&self.path)
             .expect("Could not open file for writing");
-      //  iso_f.rewind().expect("Could not seek in file.");
-        //iso_f.write(&self.data);
-        iso_f.write_all(&self.data).expect("Could not write data to file.");
+        iso_f
+            .write_all(&self.data)
+            .expect("Could not write data to file.");
     }
 }
 
@@ -112,7 +112,7 @@ impl Iso {
         lba[188] = 128;
         lba[189] = 0;
 
-        let desc_crc_len: u16 = (lba[10] as u16) |  ((lba[11] as u16) << 8);
+        let desc_crc_len: u16 = (lba[10] as u16) | ((lba[11] as u16) << 8);
         let desc: Vec<u8> = lba[16..2048].to_vec();
         let desc_crc = Self::crc(&desc, desc_crc_len as usize);
         let desc_crc_bytes = desc_crc.to_le_bytes();
@@ -129,13 +129,13 @@ impl Iso {
     }
 
     fn write_lba(&mut self, lba: &Vec<u8>, dst_lba: u64) {
-        let dst_s= (dst_lba * LBA_SIZE) as usize;
+        let dst_s = (dst_lba * LBA_SIZE) as usize;
         let dst_e = dst_s + (LBA_SIZE as usize);
         self.data[dst_s..dst_e].copy_from_slice(&lba);
     }
 
     fn copy_lba(&mut self, slba: u64, dlba: u64) {
-        let src_start  = (LBA_SIZE * slba) as usize;
+        let src_start = (LBA_SIZE * slba) as usize;
         let src_end = src_start + (LBA_SIZE as usize);
         let lba = self.data[src_start..src_end].to_vec();
         let dest_start = (LBA_SIZE * dlba) as usize;

@@ -25,11 +25,11 @@ fn main() {
         "p" => {
             println!("Attempting to apply patch...");
             game.patch()
-        },
+        }
         "u" => {
             println!("Attempting to remove patch...");
             game.unpatch()
-        },
+        }
         _ => print_usage(&args[0]),
     }
     println!("{}", game);
