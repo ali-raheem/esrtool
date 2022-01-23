@@ -21,10 +21,11 @@ impl Iso {
             .open(path)
             .expect("Could not open file");
         let mut reader = BufReader::new(iso_f);
-        let mut data: Vec<u8> = vec![];
+        let mut data = [0u8; 500 * 1024]; // 500KB
         reader
-            .read_to_end(&mut data)
+            .read_exact(&mut data)
             .expect("Could not read file into memory.");
+        let data: Vec<u8> = data.to_vec();
         let mut iso = Iso {
             udf: false,
             patched: false,
@@ -88,13 +89,15 @@ impl Iso {
         }
         self.check_iso();
     }
-    pub fn write(&self, filename: &str) {
+    pub fn write(&self) {
         let mut iso_f = OpenOptions::new()
             .read(false)
             .write(true)
-            .create(true)
-            .open(filename)
+            .create(false)
+            .open(&self.path)
             .expect("Could not open file for writing");
+      //  iso_f.rewind().expect("Could not seek in file.");
+        //iso_f.write(&self.data);
         iso_f.write_all(&self.data).expect("Could not write data to file.");
     }
 }
