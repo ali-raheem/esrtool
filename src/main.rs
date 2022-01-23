@@ -19,10 +19,20 @@ fn main() {
     if args.len() < 3 {
         print_usage(&args[0]);
     }
+    let mut game = esrtool::Iso::new(&args[2]);
+    println!("{}", game);
     match &args[1][..] {
-        "p" => esrtool::patch(&args[2]),
-        "u" => esrtool::unpatch(&args[2]),
+        "p" => {
+            println!("Attempting to apply patch...");
+            game.patch()
+        },
+        "u" => {
+            println!("Attempting to remove patch...");
+            game.unpatch()
+        },
         _ => print_usage(&args[0]),
     }
+    println!("{}", game);
+    game.write(&args[2]);
     println!("OK!");
 }
