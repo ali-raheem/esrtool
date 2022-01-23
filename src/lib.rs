@@ -1,6 +1,6 @@
 use std::fmt;
 use std::fs::OpenOptions;
-use std::io::{BufReader, Read};
+use std::io::{BufReader, Read, Write};
 
 mod defines;
 
@@ -59,6 +59,12 @@ impl Iso {
     }
 
     pub fn patch(&mut self) {
+        if !self.udf {
+            panic!("No UDF descriptor found. Is this really an ISO?")
+        }
+        if self.patched {
+            panic!("Already patched! Did you want to unpatch?");
+        }
         self.copy_lba(34, 14);
         self.copy_lba(50, 15);
         self.patch_lba(34);
@@ -68,6 +74,12 @@ impl Iso {
     }
 
     pub fn unpatch(&mut self) {
+        if !self.udf {
+            panic!("No UDF descriptor found. Is this really an ISO?")
+        }
+        if !self.patched {
+            panic!("File isn't patched! Did you want to patch?");
+        }
         self.copy_lba(14, 34);
         self.copy_lba(15, 50);
         let zeros = vec![0u8; LBA_SIZE as usize];
@@ -78,27 +90,33 @@ impl Iso {
         }
         self.check_iso();
     }
+    pub fn write(&self, filename: &str) {
+        let mut iso_f = OpenOptions::new()
+            .read(false)
+            .write(true)
+            .create(true)
+            .open(filename)
+            .expect("Could not open file for writing");
+        iso_f.write_all(&self.data).expect("Could not write data to file.");
+    }
 }
 
 // Private Functions
 impl Iso {
     fn patch_lba(&mut self, dst_lba: u64) {
         let dst_s = (dst_lba * LBA_SIZE) as usize;
-        let dst_e = (dst_s + LBA_SIZE as usize);
+        let dst_e = dst_s + LBA_SIZE as usize;
         let mut lba = self.data[dst_s..dst_e].to_vec();
 
         lba[188] = 128;
         lba[189] = 0;
 
         let desc_crc_len: u16 = (lba[10] as u16) |  ((lba[11] as u16) << 8);
-        println!("{}", desc_crc_len);
         let desc: Vec<u8> = lba[16..2048].to_vec();
         let desc_crc = Self::crc(&desc, desc_crc_len as usize);
         let desc_crc_bytes = desc_crc.to_le_bytes();
-        lba[8] = desc_crc_bytes[1];
-        lba[9] = desc_crc_bytes[0];
-
-        println!("{}", desc_crc);
+        lba[8] = desc_crc_bytes[0];
+        lba[9] = desc_crc_bytes[1];
 
         let mut checksum = 0u8;
         for i in 0..16 {
@@ -106,28 +124,27 @@ impl Iso {
         }
         checksum = checksum.wrapping_sub(lba[4]);
         lba[4] = checksum;
-        println!("{}", checksum);
         self.write_lba(&lba, dst_lba);
     }
 
     fn write_lba(&mut self, lba: &Vec<u8>, dst_lba: u64) {
         let dst_s= (dst_lba * LBA_SIZE) as usize;
-        let dst_e = (dst_s + LBA_SIZE as usize);
+        let dst_e = dst_s + (LBA_SIZE as usize);
         self.data[dst_s..dst_e].copy_from_slice(&lba);
     }
 
     fn copy_lba(&mut self, slba: u64, dlba: u64) {
         let src_start  = (LBA_SIZE * slba) as usize;
-        let src_end = (src_start + LBA_SIZE as usize);
+        let src_end = src_start + (LBA_SIZE as usize);
         let lba = self.data[src_start..src_end].to_vec();
         let dest_start = (LBA_SIZE * dlba) as usize;
-        let dest_end = (dest_start + LBA_SIZE as usize);
+        let dest_end = dest_start + (LBA_SIZE as usize);
         self.data[dest_start..dest_end].copy_from_slice(&lba[..])
     }
 
     fn write_dvd_data(&mut self) {
         let dst_s = (128 * LBA_SIZE) as usize;
-        let dst_e = (dst_s + (12 * LBA_SIZE as usize));
+        let dst_e = dst_s + 12 * (LBA_SIZE as usize);
         self.data[dst_s..dst_e].copy_from_slice(&defines::DVD_DATA);
     }
 }

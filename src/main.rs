@@ -33,5 +33,6 @@ fn main() {
         _ => print_usage(&args[0]),
     }
     println!("{}", game);
+    game.write(&args[2]);
     println!("OK!");
 }
