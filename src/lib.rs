@@ -41,9 +41,7 @@ impl Iso {
     pub fn check_udf(&mut self) -> bool {
         self.udf = false;
         for i in 1..64 {
-            let offset: usize = ((LBA_SIZE * i) + 32768 + 1)
-                .try_into()
-                .expect("Quick math!");
+            let offset = ((LBA_SIZE * i) + 32768 + 1) as usize;
             if self.data[offset..offset + 3] == b"NSR".to_owned() {
                 self.udf = true;
                 break;

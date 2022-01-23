@@ -1,13 +1,13 @@
 [package]
 name = "esrtool"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 authors = ["Ali Raheem <crates.io@shoryuken.me>"]
 license = "MIT"
 description = "Port of the PS2 Homebrew ESRtool to Rust and modern platforms."
 readme = "README.md"
-homepage = "https://github.com/ali-raheem/esrtool_rs"
-repository = "https://github.com/ali-raheem/esrtool_rs"
+homepage = "https://github.com/ali-raheem/esrtool"
+repository = "https://github.com/ali-raheem/esrtool"
 keywords = ["PS2", "retro", "gaming", "homebrew", "ESR"]
 categories = ["command-line-utilities"]
 
