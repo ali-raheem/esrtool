@@ -1,5 +1,6 @@
 use std::fmt;
 use std::fs::OpenOptions;
+use std::io;
 use std::io::{BufReader, Read, Write};
 
 mod defines;
@@ -11,20 +12,22 @@ pub struct Iso {
     data: Vec<u8>,
 }
 
+pub enum ActionResult {
+    PatchOK,
+    UnpatchOK,
+    WriteOK,
+}
 // Public Functions
 impl Iso {
-    pub fn new(path: &str) -> Iso {
+    pub fn new(path: &str) -> Result<Iso, io::Error> {
         let iso_f = OpenOptions::new()
             .read(true)
             .write(true)
             .create(false)
-            .open(path)
-            .expect("Could not open file");
+            .open(path)?;
         let mut reader = BufReader::new(iso_f);
         let mut data = [0u8; 500 * 1024]; // 500KB
-        reader
-            .read_exact(&mut data)
-            .expect("Could not read file into memory.");
+        reader.read_exact(&mut data)?;
         let data: Vec<u8> = data.to_vec();
         let mut iso = Iso {
             udf: false,
@@ -33,7 +36,7 @@ impl Iso {
             data,
         };
         iso.check_iso();
-        iso
+        Ok(iso)
     }
     pub fn check_iso(&mut self) {
         self.check_udf();
@@ -57,12 +60,12 @@ impl Iso {
         self.patched
     }
 
-    pub fn patch(&mut self) {
+    pub fn patch(&mut self) -> Result<ActionResult, &'static str> {
         if !self.udf {
-            panic!("No UDF descriptor found. Is this really an ISO?")
+            return Err("No UDF descriptor found. Is this really an ISO?");
         }
         if self.patched {
-            panic!("Already patched! Did you want to unpatch?");
+            return Err("Already patched! Did you want to unpatch?");
         }
         self.copy_lba(34, 14);
         self.copy_lba(50, 15);
@@ -70,14 +73,15 @@ impl Iso {
         self.patch_lba(50);
         self.write_dvd_data();
         self.check_iso();
+        Ok(ActionResult::PatchOK)
     }
 
-    pub fn unpatch(&mut self) {
+    pub fn unpatch(&mut self) -> Result<ActionResult, &'static str> {
         if !self.udf {
-            panic!("No UDF descriptor found. Is this really an ISO?")
+            return Err("No UDF descriptor found. Is this really an ISO?");
         }
         if !self.patched {
-            panic!("File isn't patched! Did you want to patch?");
+            return Err("File isn't patched! Did you want to patch?");
         }
         self.copy_lba(14, 34);
         self.copy_lba(15, 50);
@@ -88,17 +92,16 @@ impl Iso {
             self.write_lba(&zeros, 128 + i);
         }
         self.check_iso();
+        Ok(ActionResult::UnpatchOK)
     }
-    pub fn write(&self) {
+    pub fn write(&self) -> Result<ActionResult, io::Error> {
         let mut iso_f = OpenOptions::new()
             .read(false)
             .write(true)
             .create(false)
-            .open(&self.path)
-            .expect("Could not open file for writing");
-        iso_f
-            .write_all(&self.data)
-            .expect("Could not write data to file.");
+            .open(&self.path)?;
+        iso_f.write_all(&self.data)?;
+        Ok(ActionResult::WriteOK)
     }
 }
 
