@@ -1,6 +1,6 @@
 [package]
 name = "esrtool"
-version = "0.3.3"
+version = "0.3.4"
 edition = "2021"
 authors = ["Ali Raheem <crates.io@shoryuken.me>"]
 license = "MIT"
@@ -10,5 +10,22 @@ homepage = "https://github.com/ali-raheem/esrtool"
 repository = "https://github.com/ali-raheem/esrtool"
 keywords = ["PS2", "retro", "gaming", "homebrew", "ESR"]
 categories = ["command-line-utilities"]
+default-run = "esrtool"
+
+[features]
+default = []
+gui = ["dep:egui", "dep:eframe", "dep:rfd"]
 
 [dependencies]
+egui = { version = "0.28.1", optional = true}
+eframe = { version = "0.28.1" , optional = true}
+rfd = { version = "0.14.1", optional = true }
+
+[[bin]]
+name = "esrtool"
+path = "src/main.rs"
+
+[[bin]]
+name = "esrtool-gui"
+path = "src/main-gui.rs"
+required-features = ["gui"]
