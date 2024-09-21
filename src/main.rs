@@ -1,5 +1,4 @@
 use std::{env, panic};
-use std::io::Error;
 use std::process::exit;
 
 fn print_usage(name: &str) {

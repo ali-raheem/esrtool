@@ -6,7 +6,8 @@ These older versions contain several bugs, at least one of which is potentially 
 
 # Installation
 
-Either you can clone this repo and build in the usual way with `cargo build --release`. Or use `cargo install esrtool` to install it from [crates.io](https://crates.io/crates/esrtool).
+* Either you can clone this repo and build in the usual way with `cargo build --release`. Or use `cargo install esrtool` to install it from [crates.io](https://crates.io/crates/esrtool).
+* There is a GUI version available, just build `gui` feature: `cargo build --features gui --release`
 
 # Usage
 
